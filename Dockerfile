@@ -18,6 +18,14 @@ RUN mvn clean package -DskipTests
 # Runtime stage
 FROM eclipse-temurin:17-jre
 
+# Install Tesseract OCR and its dependencies
+RUN apt-get update && apt-get install -y \
+	tesseract-ocr \
+	tesseract-ocr-eng \
+	tesseract-ocr-vie \
+	libtesseract-dev \
+	&& rm -rf /var/lib/apt/lists/*
+
 # Set working directory
 WORKDIR /app
 
