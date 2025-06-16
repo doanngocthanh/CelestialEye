@@ -9,7 +9,10 @@ COPY pom.xml .
 RUN mvn dependency:go-offline -B
 
 # Copy source code and build
-COPY . .
+COPY src ./src
+COPY models ./models
+COPY eng.traineddata ./eng.traineddata
+COPY vie.traineddata ./vie.traineddata
 RUN mvn clean package -DskipTests
 
 # Runtime stage
