@@ -11,29 +11,45 @@ RUN mvn dependency:go-offline -B
 # Copy source code and build
 COPY src ./src
 COPY models ./models
-COPY eng.traineddata ./eng.traineddata
-COPY vie.traineddata ./vie.traineddata
 RUN mvn clean package -DskipTests
 
 # Runtime stage
-FROM eclipse-temurin:17-jre
+FROM openjdk:17-jdk-slim
 
-# Install Tesseract OCR and its dependencies
-RUN apt-get update && apt-get install -y \
-	tesseract-ocr \
-	tesseract-ocr-eng \
-	tesseract-ocr-vie \
-	libtesseract-dev \
-	&& rm -rf /var/lib/apt/lists/*
+# Install Tesseract and Vietnamese language pack
+RUN apt-get update && \
+    apt-get install -y tesseract-ocr tesseract-ocr-vie && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
-# Set working directory
+# Set Tesseract environment
+ENV TESSDATA_PREFIX=/usr/share/tessdata
+
+# Copy custom traineddata files to Tesseract directory
+COPY eng.traineddata /usr/share/tessdata/
+COPY vie.traineddata /usr/share/tessdata/
+
+# Create app user and directories
+RUN useradd -m -u 1001 appuser
+RUN mkdir -p /app/uploads/models /app/data && \
+    chown -R appuser:appuser /app
+
+# Copy application JAR
+COPY --from=build /app/target/*.jar /app/app.jar
+RUN chown appuser:appuser /app/app.jar
+
+# Create volume for persistent data
+VOLUME ["/app/uploads", "/app/data"]
+
+# Switch to non-root user
+USER appuser
+
 WORKDIR /app
 
-# Copy jar from build stage
-COPY --from=build /app/target/*.jar app.jar
-
-# Expose port
 EXPOSE 8080
 
-# Run the application
-ENTRYPOINT ["java", "-jar", "app.jar"]
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:8080/actuator/health || exit 1
+
+CMD ["java", "-jar", "app.jar"]
