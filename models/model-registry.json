@@ -1,0 +1,11 @@
+{
+  "DetectCCCD" : {
+    "name" : "DetectCCCD",
+    "fileName" : "ocr_cccd.onnx",
+    "description" : "Upload chơi vậy thôi",
+    "filePath" : "models\\DetectCCCD_1750049025745.onnx",
+    "fileSize" : 12258235,
+    "uploadTime" : "2025-06-16T11:43:45.767918",
+    "status" : "ACTIVE"
+  }
+}
