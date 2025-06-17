@@ -12,6 +12,7 @@ import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -48,13 +49,26 @@ public class DetectionService {
             }
             
             System.out.println("Image loaded successfully: " + image.getWidth() + "x" + image.getHeight());
-            
-            // Perform detection
+              // Perform detection
             long startTime = System.currentTimeMillis();
             YOLOv8Detector.Detection[] detections = detector.detect(image);
             long endTime = System.currentTimeMillis();
             
             System.out.println("Detection completed: " + detections.length + " objects found");
+            
+            // Log all detections for debugging
+            for (int i = 0; i < detections.length; i++) {
+                YOLOv8Detector.Detection det = detections[i];
+                System.out.println(String.format("Detection %d: class=%s (id=%d), confidence=%.3f, bbox=(%.1f,%.1f,%.1f,%.1f)", 
+                    i, det.className, det.classId, det.confidence, det.x1, det.y1, det.x2, det.y2));
+            }
+            
+            // Count detections by class name
+            Map<String, Long> classCount = new HashMap<>();
+            for (YOLOv8Detector.Detection detection : detections) {
+                classCount.merge(detection.className, 1L, Long::sum);
+            }
+            System.out.println("Detection count by class: " + classCount);
             
             // Convert to DTO
             List<DetectionResult.DetectionItem> detectionItems = new ArrayList<>();
@@ -90,8 +104,7 @@ public class DetectionService {
     private GenericYOLODetector getOrCreateDetector(String modelName, String classNames, Float confThreshold) {
         String cacheKey = modelName + "_" + (classNames != null ? classNames.hashCode() : "default") + 
                          "_" + (confThreshold != null ? confThreshold : "default");
-        
-        return detectorCache.computeIfAbsent(cacheKey, k -> {
+          return detectorCache.computeIfAbsent(cacheKey, k -> {
             String modelPath = modelService.getModelPath(modelName);
             GenericYOLODetector detector;
             
@@ -107,7 +120,13 @@ public class DetectionService {
             if (classNames != null && !classNames.trim().isEmpty()) {
                 detector.setClassNamesFromString(classNames);
             }
-            System.out.println("Created new detector for model: " + modelName);
+            
+            // IMPORTANT: Reduce NMS threshold for CCCD models to preserve multiple text lines
+            // Default NMS threshold is 0.45, which may remove overlapping address lines
+            // Lower NMS threshold (higher value = less suppression) to keep more detections
+            detector.setNmsThreshold(0.3f); // Reduced from 0.45f to 0.3f
+            
+            System.out.println("Created new detector for model: " + modelName + " with NMS threshold: 0.3");
             return detector;
         });
     }

@@ -11,6 +11,7 @@ public class OcrDetectionResponse {
     private List<OcrResult> results;
     private long processingTimeMs;
     private String imageInfo;
+    private CccdInfo cccdInfo; // Parsed CCCD information if available
     
     public OcrDetectionResponse() {}
     
@@ -21,6 +22,16 @@ public class OcrDetectionResponse {
         this.results = results;
         this.processingTimeMs = processingTimeMs;
         this.imageInfo = imageInfo;
+    }
+    
+    public OcrDetectionResponse(String modelName, int totalDetections, List<OcrResult> results, 
+                               long processingTimeMs, String imageInfo, CccdInfo cccdInfo) {
+        this.modelName = modelName;
+        this.totalDetections = totalDetections;
+        this.results = results;
+        this.processingTimeMs = processingTimeMs;
+        this.imageInfo = imageInfo;
+        this.cccdInfo = cccdInfo;
     }
     
     // Getters and Setters
@@ -62,5 +73,13 @@ public class OcrDetectionResponse {
     
     public void setImageInfo(String imageInfo) {
         this.imageInfo = imageInfo;
+    }
+    
+    public CccdInfo getCccdInfo() {
+        return cccdInfo;
+    }
+    
+    public void setCccdInfo(CccdInfo cccdInfo) {
+        this.cccdInfo = cccdInfo;
     }
 }

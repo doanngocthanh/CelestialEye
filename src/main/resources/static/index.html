@@ -10,7 +10,7 @@
 <body>
     <div class="container">
         <header>
-            <h1><i class="fas fa-robot"></i> AI Detection System</h1>
+            <h1><i class="fas fa-eye"></i> CelestialEye</h1>
             <p>Upload ONNX models and detect objects in images</p>
         </header>        <div class="tabs">
             <button class="tab-button active" onclick="openTab(event, 'upload-tab')">
@@ -24,12 +24,16 @@
             </button>
             <button class="tab-button" onclick="openTab(event, 'detect-tab')">
                 <i class="fas fa-search"></i> Detection
-            </button>
-            <button class="tab-button" onclick="openTab(event, 'ocr-tab')">
+            </button>            <button class="tab-button" onclick="openTab(event, 'ocr-tab')">
                 <i class="fas fa-font"></i> OCR
+            </button>            <button class="tab-button" onclick="openTab(event, 'qrcode-tab')">
+                <i class="fas fa-qrcode"></i> QR Code
+            </button>
+            <button class="tab-button" onclick="openTab(event, 'workflow-tab')">
+                <i class="fas fa-project-diagram"></i> Workflows
             </button>
         </div>
-
+ 
         <!-- Upload Model Tab -->
         <div id="upload-tab" class="tab-content active">
             <div class="card">
@@ -168,8 +172,110 @@
                     </div>                    <button type="submit" class="btn btn-primary">
                         <i class="fas fa-font"></i> Detect Objects & Extract Text
                     </button>
-                </form>
-                <div id="ocr-result" class="result"></div>
+                </form>                <div id="ocr-result" class="result"></div>
+            </div>
+        </div>
+
+        <!-- QR Code Detection Tab -->
+        <div id="qrcode-tab" class="tab-content">
+            <div class="card">
+                <h2><i class="fas fa-qrcode"></i> QR Code Detection</h2>
+                <p>Detect and decode QR codes in uploaded images using BoofCV</p>
+                
+                <form id="qrcode-form" enctype="multipart/form-data">
+                    <div class="form-group">
+                        <label for="qrcode-image-file">Select Image:</label>
+                        <div class="file-input-wrapper">
+                            <input type="file" id="qrcode-image-file" name="image" accept="image/*" required>
+                            <label for="qrcode-image-file" class="file-input-label">
+                                <i class="fas fa-image"></i>
+                                Choose Image
+                            </label>
+                        </div>
+                        <div id="qrcode-image-preview" class="image-preview"></div>
+                    </div>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-qrcode"></i> Detect QR Codes
+                    </button>
+                </form>                <div id="qrcode-result" class="result"></div>
+            </div>
+        </div>
+
+        <!-- Workflows Tab -->
+        <div id="workflow-tab" class="tab-content">
+            <div class="card">
+                <h2><i class="fas fa-project-diagram"></i> Workflow Management</h2>
+                
+                <!-- Workflow List -->
+                <div class="workflow-section">
+                    <h3><i class="fas fa-list"></i> Available Workflows</h3>
+                    <div id="workflows-list" class="workflows-container">
+                        <div class="loading">Loading workflows...</div>
+                    </div>
+                    <button class="btn btn-secondary" onclick="loadWorkflows()">
+                        <i class="fas fa-sync"></i> Refresh
+                    </button>
+                </div>
+
+                <!-- Execute Workflow -->
+                <div class="workflow-section">
+                    <h3><i class="fas fa-play"></i> Execute Workflow</h3>
+                    <form id="workflow-execution-form" enctype="multipart/form-data">
+                        <div class="form-group">
+                            <label for="workflow-select">Select Workflow:</label>
+                            <select id="workflow-select" required>
+                                <option value="">Choose a workflow...</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="workflow-image-file">Select Image:</label>
+                            <div class="file-input-container">
+                                <input type="file" id="workflow-image-file" name="image" accept="image/*" required>
+                                <label for="workflow-image-file" class="file-input-label">
+                                    <i class="fas fa-image"></i> Choose Image
+                                </label>
+                            </div>
+                            <div id="workflow-image-preview" class="image-preview"></div>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-play"></i> Execute Workflow
+                        </button>
+                    </form>
+                    <div id="workflow-execution-result" class="result"></div>
+                </div>
+
+                <!-- Create/Edit Workflow -->
+                <div class="workflow-section">
+                    <h3><i class="fas fa-plus"></i> Create New Workflow</h3>
+                    <form id="workflow-create-form">
+                        <div class="form-group">
+                            <label for="workflow-name">Workflow Name:</label>
+                            <input type="text" id="workflow-name" required>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="workflow-description">Description:</label>
+                            <textarea id="workflow-description" rows="3"></textarea>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Workflow Steps:</label>
+                            <div id="workflow-steps-container">
+                                <!-- Steps will be added dynamically -->
+                            </div>
+                            <button type="button" class="btn btn-secondary" onclick="addWorkflowStep()">
+                                <i class="fas fa-plus"></i> Add Step
+                            </button>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save"></i> Create Workflow
+                        </button>
+                    </form>
+                    <div id="workflow-create-result" class="result"></div>
+                </div>
             </div>
         </div>
     </div>

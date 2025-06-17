@@ -328,36 +328,24 @@ public abstract class YOLOv8Detector {
                 
                 Detection detection = new Detection(x1, y1, x2, y2, maxClassConf, bestClass, className);
                 validDetections.add(detection);
-            }        }
-          System.out.println("Valid detections before NMS: " + validDetections.size());
+            }        }          System.out.println("Valid detections before NMS: " + validDetections.size());
         
-        // For document detection, we want the best detection for each class
-        // Group by class and keep only the highest confidence detection per class
-        java.util.Map<Integer, Detection> bestDetectionPerClass = new java.util.HashMap<>();
-        
-        for (Detection detection : validDetections) {
-            Integer classId = detection.classId;
-            if (!bestDetectionPerClass.containsKey(classId) || 
-                detection.confidence > bestDetectionPerClass.get(classId).confidence) {
-                bestDetectionPerClass.put(classId, detection);
-            }
-        }
-        
-        java.util.List<Detection> finalDetections = new java.util.ArrayList<>(bestDetectionPerClass.values());
+        // Apply NMS to remove overlapping detections
+        java.util.List<Detection> nmsDetections = applyNMS(validDetections, nmsThreshold);
         
         // Sort by confidence (highest first) for better presentation
-        finalDetections.sort((a, b) -> Float.compare(b.confidence, a.confidence));
+        nmsDetections.sort((a, b) -> Float.compare(b.confidence, a.confidence));
         
-        System.out.println("Final detections (best per class): " + finalDetections.size());
+        System.out.println("Final detections after NMS: " + nmsDetections.size());
         
         // Log details of final detections
-        for (Detection det : finalDetections) {
+        for (Detection det : nmsDetections) {
             System.out.println("  " + det.className + " (class " + det.classId + "): confidence=" + 
                              String.format("%.3f", det.confidence) + 
                              ", bbox=[" + (int)det.x1 + "," + (int)det.y1 + "," + (int)det.x2 + "," + (int)det.y2 + "]");
         }
         
-        return finalDetections.toArray(new Detection[0]);
+        return nmsDetections.toArray(new Detection[0]);
     }
     
     /**
