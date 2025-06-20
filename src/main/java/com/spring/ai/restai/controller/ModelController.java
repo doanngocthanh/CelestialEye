@@ -12,11 +12,12 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/models")
-@CrossOrigin(origins = "*")
 public class ModelController {
 
     @Autowired
-    private ModelService modelService;    /**
+    private ModelService modelService;
+
+    /**
      * Upload ONNX model
      */
     @PostMapping("/upload")
@@ -24,28 +25,30 @@ public class ModelController {
             @RequestParam("file") MultipartFile fileUpload,
             @RequestParam("name") String modelName,
             @RequestParam(value = "description", required = false) String description) {
-        
+
         try {
             if (fileUpload.isEmpty()) {
                 return ResponseEntity.badRequest().body(Map.of("success", false, "message", "File is empty"));
             }
-            
+
             if (!fileUpload.getOriginalFilename().endsWith(".onnx")) {
-                return ResponseEntity.badRequest().body(Map.of("success", false, "message", "Only ONNX files are allowed"));
+                return ResponseEntity.badRequest()
+                        .body(Map.of("success", false, "message", "Only ONNX files are allowed"));
             }
-            
+
             ModelInfo modelInfo = modelService.uploadModel(fileUpload, modelName, description);
             return ResponseEntity.ok(Map.of(
-                "success", true,
-                "message", "Model uploaded successfully",
-                "modelName", modelName,
-                "model", modelInfo
-            ));
-            
+                    "success", true,
+                    "message", "Model uploaded successfully",
+                    "modelName", modelName,
+                    "model", modelInfo));
+
         } catch (Exception e) {
             return ResponseEntity.internalServerError().body(Map.of("success", false, "message", e.getMessage()));
         }
-    }    /**
+    }
+
+    /**
      * List all uploaded models
      */
     @GetMapping("/list")
@@ -53,14 +56,12 @@ public class ModelController {
         try {
             List<ModelInfo> models = modelService.listModels();
             return ResponseEntity.ok(Map.of(
-                "success", true,
-                "models", models
-            ));
+                    "success", true,
+                    "models", models));
         } catch (Exception e) {
             return ResponseEntity.internalServerError().body(Map.of(
-                "success", false,
-                "message", e.getMessage()
-            ));
+                    "success", false,
+                    "message", e.getMessage()));
         }
     }
 

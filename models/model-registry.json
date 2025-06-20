@@ -1,4 +1,13 @@
 {
+  "DetectBarCode" : {
+    "name" : "DetectBarCode",
+    "fileName" : "bar_code.onnx",
+    "description" : "",
+    "filePath" : "models\\DetectBarCode_1750436985515.onnx",
+    "fileSize" : 12116373,
+    "uploadTime" : "2025-06-20T23:29:45.5265019",
+    "status" : "ACTIVE"
+  },
   "DetectCCCD" : {
     "name" : "DetectCCCD",
     "fileName" : "ocr_cccd.onnx",

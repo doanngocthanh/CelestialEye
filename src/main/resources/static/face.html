@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Face Recognition</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="face.css">
+</head>
+<body>
+    <div class="container">
+        <nav class="nav-menu">
+            <a href="index.html">Home</a>
+            <a href="barcode.html">Barcode</a>
+            <a href="face.html" class="active">Face Recognition</a>
+        </nav>
+
+        <div class="main-content">
+            <div class="face-tabs">
+                <button class="tab-button active" data-tab="register">Register Face</button>
+                <button class="tab-button" data-tab="authenticate">Authenticate</button>
+                <button class="tab-button" data-tab="list">Face List</button>
+            </div>
+
+            <div class="tab-content" id="registerTab">
+                <h2>Register New Face</h2>
+                <div class="register-form">
+                    <input type="file" id="registerFileInput" accept="image/*">
+                    <input type="text" id="personName" placeholder="Person's Name">
+                    <button id="registerButton">Register Face</button>
+                </div>
+                <div id="registerPreview" class="preview-section"></div>
+            </div>
+
+            <div class="tab-content" id="authenticateTab" style="display: none;">
+                <h2>Face Authentication</h2>
+                <div class="auth-form">
+                    <input type="file" id="authFileInput" accept="image/*">
+                    <button id="authenticateButton">Authenticate</button>
+                </div>
+                <div id="authPreview" class="preview-section"></div>
+                <div id="authResult" class="result-section"></div>
+            </div>
+
+            <div class="tab-content" id="listTab" style="display: none;">
+                <h2>Registered Faces</h2>
+                <button id="refreshList">Refresh List</button>
+                <div id="facesList" class="faces-grid"></div>
+            </div>
+
+            <div class="loading-spinner" id="loadingSpinner" style="display: none;">
+                <div class="spinner"></div>
+                <p>Processing...</p>
+            </div>
+        </div>
+    </div>
+    <script src="face.js"></script>
+</body>
+</html>

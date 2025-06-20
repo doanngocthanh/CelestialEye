@@ -13,11 +13,12 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/detection")
-@CrossOrigin(origins = "*")
 public class DetectionController {
 
     @Autowired
-    private DetectionService detectionService;    /**
+    private DetectionService detectionService;
+
+    /**
      * Perform object detection
      */
     @PostMapping("/detect/{modelName}")
@@ -26,37 +27,40 @@ public class DetectionController {
             @RequestParam("image") MultipartFile imageFile,
             @RequestParam(value = "classNames", required = false) String classNames,
             @RequestParam(value = "confThreshold", required = false) Float confThreshold) {
-        
+
         try {
             if (imageFile.isEmpty()) {
                 return ResponseEntity.badRequest().body(Map.of("success", false, "message", "Image file is required"));
             }
-            
+
             // Validate image file type
             String contentType = imageFile.getContentType();
             if (contentType == null || !contentType.startsWith("image/")) {
-                return ResponseEntity.badRequest().body(Map.of("success", false, "message", "Only image files are allowed"));
+                return ResponseEntity.badRequest()
+                        .body(Map.of("success", false, "message", "Only image files are allowed"));
             }
-            
+
             DetectionResult result = detectionService.detect(modelName, imageFile, classNames, confThreshold);
-            
+
             // Wrap result with success flag
             return ResponseEntity.ok(Map.of(
-                "success", true,
-                "modelName", result.getModelName(),
-                "imageName", result.getImageName(),
-                "imageWidth", result.getImageWidth(),
-                "imageHeight", result.getImageHeight(),
-                "processingTime", result.getProcessingTime(),
-                "detections", result.getDetections()
-            ));
-            
+                    "success", true,
+                    "modelName", result.getModelName(),
+                    "imageName", result.getImageName(),
+                    "imageWidth", result.getImageWidth(),
+                    "imageHeight", result.getImageHeight(),
+                    "processingTime", result.getProcessingTime(),
+                    "detections", result.getDetections()));
+
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
         } catch (Exception e) {
-            return ResponseEntity.internalServerError().body(Map.of("success", false, "message", "Detection failed: " + e.getMessage()));
+            return ResponseEntity.internalServerError()
+                    .body(Map.of("success", false, "message", "Detection failed: " + e.getMessage()));
         }
-    }    /**
+    }
+
+    /**
      * Get available models for detection
      */
     @GetMapping("/models")
@@ -64,14 +68,12 @@ public class DetectionController {
         try {
             List<ModelInfo> models = detectionService.getAvailableModels();
             return ResponseEntity.ok(Map.of(
-                "success", true,
-                "models", models
-            ));
+                    "success", true,
+                    "models", models));
         } catch (Exception e) {
             return ResponseEntity.internalServerError().body(Map.of(
-                "success", false,
-                "message", e.getMessage()
-            ));
+                    "success", false,
+                    "message", e.getMessage()));
         }
     }
 
@@ -107,10 +109,9 @@ public class DetectionController {
     @GetMapping("/health")
     public ResponseEntity<?> health() {
         return ResponseEntity.ok(Map.of(
-            "status", "UP",
-            "service", "Detection Service",
-            "availableModels", detectionService.getAvailableModels().size()
-        ));
+                "status", "UP",
+                "service", "Detection Service",
+                "availableModels", detectionService.getAvailableModels().size()));
     }
 
     /**
@@ -123,36 +124,32 @@ public class DetectionController {
         try {
             @SuppressWarnings("unchecked")
             List<String> classNamesList = (List<String>) request.get("classNames");
-            
+
             if (classNamesList == null || classNamesList.isEmpty()) {
                 return ResponseEntity.badRequest().body(Map.of(
-                    "success", false, 
-                    "message", "Class names list is required"
-                ));
+                        "success", false,
+                        "message", "Class names list is required"));
             }
-            
+
             String classNamesStr = String.join(",", classNamesList);
             boolean updated = detectionService.updateModelClassNames(modelName, classNamesStr);
-            
+
             if (updated) {
                 return ResponseEntity.ok(Map.of(
-                    "success", true,
-                    "message", "Class names updated successfully",
-                    "modelName", modelName,
-                    "classNames", classNamesList
-                ));
+                        "success", true,
+                        "message", "Class names updated successfully",
+                        "modelName", modelName,
+                        "classNames", classNamesList));
             } else {
                 return ResponseEntity.status(org.springframework.http.HttpStatus.NOT_FOUND).body(Map.of(
-                    "success", false,
-                    "message", "Model not found: " + modelName
-                ));
+                        "success", false,
+                        "message", "Model not found: " + modelName));
             }
-            
+
         } catch (Exception e) {
             return ResponseEntity.internalServerError().body(Map.of(
-                "success", false,
-                "message", "Failed to update class names: " + e.getMessage()
-            ));
+                    "success", false,
+                    "message", "Failed to update class names: " + e.getMessage()));
         }
     }
 }
