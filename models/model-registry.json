@@ -1,20 +1,46 @@
 {
-  "DetectBarCode" : {
-    "name" : "DetectBarCode",
-    "fileName" : "bar_code.onnx",
-    "description" : "",
-    "filePath" : "models\\DetectBarCode_1750436985515.onnx",
+  "phat_hien_ma_barcode" : {
+    "id" : "phat_hien_ma_barcode",
+    "name" : "Phát Hiện Mã Barcode",
+    "fileName" : "DetectBarCode_1750436985515.onnx",
+    "description" : null,
+    "filePath" : "models\\phat_hien_ma_barcode_1750504834960.onnx",
     "fileSize" : 12116373,
-    "uploadTime" : "2025-06-20T23:29:45.5265019",
-    "status" : "ACTIVE"
+    "uploadTime" : "2025-06-21T18:20:34.9605906",
+    "status" : "ACTIVE",
+    "type" : "Barcode Detection"
   },
-  "DetectCCCD" : {
-    "name" : "DetectCCCD",
-    "fileName" : "ocr_cccd.onnx",
-    "description" : "Upload chơi vậy thôi",
-    "filePath" : "models\\DetectCCCD_1750049025745.onnx",
+  "nhan_dien_cccd_co_ma_qrcode_1" : {
+    "id" : "nhan_dien_cccd_co_ma_qrcode_1",
+    "name" : "Nhận diện CCCD có mã QRCode",
+    "fileName" : "DetectCCCD_1750049025745.onnx",
+    "description" : null,
+    "filePath" : "models\\nhan_dien_cccd_co_ma_qrcode_1_1750504347908.onnx",
     "fileSize" : 12258235,
-    "uploadTime" : "2025-06-16T11:43:45.767918",
-    "status" : "ACTIVE"
+    "uploadTime" : "2025-06-21T18:12:27.9213728",
+    "status" : "ACTIVE",
+    "type" : "OCR"
+  },
+  "testqr" : {
+    "id" : "testqr",
+    "name" : "TestQR",
+    "fileName" : "DetectCCCD_1750049025745.onnx",
+    "description" : null,
+    "filePath" : "models\\testqr_1750505314626.onnx",
+    "fileSize" : 12258235,
+    "uploadTime" : "2025-06-21T18:28:34.6263822",
+    "status" : "ACTIVE",
+    "type" : "QR Code Detection"
+  },
+  "nhan_dien_cccd_co_ma_qrcode" : {
+    "id" : "nhan_dien_cccd_co_ma_qrcode",
+    "name" : "Nhận diện CCCD có mã QRCode",
+    "fileName" : "DetectCCCD_1750049025745.onnx",
+    "description" : null,
+    "filePath" : "models\\nhan_dien_cccd_co_ma_qrcode_1750503914913.onnx",
+    "fileSize" : 12258235,
+    "uploadTime" : "2025-06-21T18:05:14.914124",
+    "status" : "ACTIVE",
+    "type" : "Object Detection"
   }
 }

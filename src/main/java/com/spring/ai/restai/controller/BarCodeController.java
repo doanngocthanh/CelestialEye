@@ -7,6 +7,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -16,18 +17,18 @@ import java.util.Map;
 public class BarCodeController {
 
     @Autowired
-    private BarcodeService barcodeService;
-
-    /**
+    private BarcodeService barcodeService;    /**
      * Process document (PDF/TIFF/Image) and detect barcodes
      */
     @PostMapping("/process")
-    public ResponseEntity<?> processDocument(@RequestParam("file") MultipartFile file) {
+    public ResponseEntity<?> processDocument(@RequestParam("file") MultipartFile file,
+                                           @RequestParam(value = "modelId", required = false) String modelId) {
         try {
             System.out.println("\n=== Starting new document processing request ===");
             System.out.println("File name: " + file.getOriginalFilename());
             System.out.println("File size: " + file.getSize() + " bytes");
             System.out.println("Content type: " + file.getContentType());
+            System.out.println("Model ID: " + (modelId != null ? modelId : "none (ZXing only)"));
 
             if (file.isEmpty()) {
                 System.out.println("Error: Empty file received");
@@ -46,7 +47,7 @@ public class BarCodeController {
                         "error", "Unsupported file type. Please upload an image, PDF, or TIFF file"));
             }
 
-            List<DetailedBarcodeResult> allResults = barcodeService.processDocument(file);
+            List<DetailedBarcodeResult> allResults = barcodeService.processDocument(file, modelId);
             System.out.println("Service returned " + allResults.size() + " results");
 
             // Filter out pages with no barcode detected
@@ -97,6 +98,42 @@ public class BarCodeController {
             return ResponseEntity.badRequest().body(Map.of(
                     "success", false,
                     "error", "Error processing document: " + e.getMessage()));
+        }
+    }    /**
+     * Simple barcode detection endpoint
+     */
+    @PostMapping("/detect")
+    public ResponseEntity<Map<String, Object>> detectBarcode(@RequestParam("file") MultipartFile file,
+                                                           @RequestParam(value = "modelId", required = false) String modelId) {
+        try {
+            if (file.isEmpty()) {
+                return ResponseEntity.badRequest().body(Map.of("success", false, "message", "File is required"));
+            }
+
+            // Use the existing process method
+            ResponseEntity<?> response = processDocument(file, modelId);// Extract data from the response
+            if (response.getStatusCode().is2xxSuccessful() && response.getBody() instanceof Map) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> body = (Map<String, Object>) response.getBody();
+
+                return ResponseEntity.ok(Map.of(
+                        "success", true,
+                        "barcodes", body.getOrDefault("barcodes", new ArrayList<>()),
+                        "totalFound", body.getOrDefault("totalFound", 0),
+                        "fileName", file.getOriginalFilename()
+                ));
+            } else {
+                return ResponseEntity.internalServerError().body(Map.of(
+                        "success", false,
+                        "message", "Barcode detection failed"
+                ));
+            }
+
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body(Map.of(
+                    "success", false,
+                    "message", "Barcode detection failed: " + e.getMessage()
+            ));
         }
     }
 }

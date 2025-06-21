@@ -82,18 +82,24 @@ public class ModelService {
             e.printStackTrace();
         }
     }
-    
-    /**
+      /**
      * Upload ONNX model
-     */
-    public ModelInfo uploadModel(MultipartFile file, String modelName, String description) throws IOException {
+     */    public ModelInfo uploadModel(MultipartFile file, String modelName, String modelType, String description) throws IOException {
         
         // Validate model name
         if (modelName == null || modelName.trim().isEmpty()) {
             throw new IllegalArgumentException("Model name cannot be empty");
         }
         
-        if (modelRegistry.containsKey(modelName)) {
+        // Validate model type
+        if (modelType == null || modelType.trim().isEmpty()) {
+            throw new IllegalArgumentException("Model type cannot be empty");
+        }
+        
+        // Generate unique ID based on name
+        String modelId = generateModelId(modelName);
+        
+        if (modelRegistry.containsKey(modelId)) {
             throw new IllegalArgumentException("Model with name '" + modelName + "' already exists");
         }
         
@@ -101,31 +107,30 @@ public class ModelService {
         Path uploadPath = Paths.get(uploadDir);
         if (!Files.exists(uploadPath)) {
             Files.createDirectories(uploadPath);
-        }
-          // Generate unique filename
+        }        // Generate unique filename using modelId (safe for file system)
         String originalFilename = file.getOriginalFilename();
         if (originalFilename == null || originalFilename.isEmpty()) {
             throw new IllegalArgumentException("File name cannot be empty");
         }
         
         String fileExtension = originalFilename.substring(originalFilename.lastIndexOf("."));
-        String uniqueFilename = modelName + "_" + System.currentTimeMillis() + fileExtension;
-        
-        // Save file
+        String uniqueFilename = modelId + "_" + System.currentTimeMillis() + fileExtension;
+          // Save file
         Path filePath = uploadPath.resolve(uniqueFilename);
         Files.copy(file.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
-        
-        // Create model info
+          // Create model info
         ModelInfo modelInfo = new ModelInfo(
+            modelId,
             modelName,
             originalFilename,
             description,
             filePath.toString(),
-            file.getSize()
+            file.getSize(),
+            modelType.trim()
         );
         
-        // Register model
-        modelRegistry.put(modelName, modelInfo);
+        // Register model using ID as key
+        modelRegistry.put(modelId, modelInfo);
         
         // Save registry to JSON file
         saveModelRegistry();
@@ -140,19 +145,42 @@ public class ModelService {
     public List<ModelInfo> listModels() {
         return new ArrayList<>(modelRegistry.values());
     }
-    
-    /**
-     * Get model info by name
+      /**
+     * Get model info by ID or name
      */
-    public ModelInfo getModelInfo(String modelName) {
-        return modelRegistry.get(modelName);
+    public ModelInfo getModelInfo(String identifier) {
+        // Try to find by ID first
+        ModelInfo modelInfo = modelRegistry.get(identifier);
+        if (modelInfo != null) {
+            return modelInfo;
+        }
+        
+        // If not found, try to find by name
+        return modelRegistry.values().stream()
+                .filter(model -> model.getName().equals(identifier))
+                .findFirst()
+                .orElse(null);
     }
     
     /**
-     * Delete model
+     * Delete model by ID or name
      */
-    public boolean deleteModel(String modelName) {
-        ModelInfo modelInfo = modelRegistry.get(modelName);
+    public boolean deleteModel(String identifier) {
+        // Try to find by ID first
+        ModelInfo modelInfo = modelRegistry.get(identifier);
+        String modelId = identifier;
+        
+        // If not found, try to find by name
+        if (modelInfo == null) {
+            for (Map.Entry<String, ModelInfo> entry : modelRegistry.entrySet()) {
+                if (entry.getValue().getName().equals(identifier)) {
+                    modelInfo = entry.getValue();
+                    modelId = entry.getKey();
+                    break;
+                }
+            }
+        }
+        
         if (modelInfo != null) {
             try {
                 // Delete physical file
@@ -160,13 +188,14 @@ public class ModelService {
                 if (Files.exists(filePath)) {
                     Files.delete(filePath);
                 }
-                  // Remove from registry
-                modelRegistry.remove(modelName);
+                
+                // Remove from registry
+                modelRegistry.remove(modelId);
                 
                 // Save registry to JSON file
                 saveModelRegistry();
                 
-                System.out.println("Model deleted successfully: " + modelName);
+                System.out.println("Model deleted successfully: " + identifier);
                 return true;
                 
             } catch (IOException e) {
@@ -176,19 +205,73 @@ public class ModelService {
         }
         return false;
     }
-    
-    /**
-     * Check if model exists
+      /**
+     * Check if model exists by ID or name
      */
-    public boolean modelExists(String modelName) {
-        return modelRegistry.containsKey(modelName);
+    public boolean modelExists(String identifier) {
+        // Check by ID first
+        if (modelRegistry.containsKey(identifier)) {
+            return true;
+        }
+        
+        // Check by name
+        return modelRegistry.values().stream()
+                .anyMatch(model -> model.getName().equals(identifier));
     }
     
     /**
-     * Get model file path
+     * Get model file path by ID or name
      */
-    public String getModelPath(String modelName) {
-        ModelInfo modelInfo = modelRegistry.get(modelName);
+    public String getModelPath(String identifier) {
+        ModelInfo modelInfo = getModelInfo(identifier);
         return modelInfo != null ? modelInfo.getFilePath() : null;
+    }
+    
+    /**
+     * Generate unique model ID from name
+     */
+    private String generateModelId(String modelName) {
+        // Convert Vietnamese name to safe ID
+        String baseId = modelName.toLowerCase()
+                .replaceAll("[àáạảãâầấậẩẫăằắặẳẵ]", "a")
+                .replaceAll("[èéẹẻẽêềếệểễ]", "e")
+                .replaceAll("[ìíịỉĩ]", "i")
+                .replaceAll("[òóọỏõôồốộổỗơờớợởỡ]", "o")
+                .replaceAll("[ùúụủũưừứựửữ]", "u")
+                .replaceAll("[ỳýỵỷỹ]", "y")
+                .replaceAll("[đ]", "d")
+                .replaceAll("[^a-z0-9]", "_")
+                .replaceAll("_+", "_")
+                .replaceAll("^_|_$", "");
+        
+        // Ensure unique ID
+        String modelId = baseId;
+        int counter = 1;
+        while (modelRegistry.containsKey(modelId)) {
+            modelId = baseId + "_" + counter;
+            counter++;
+        }
+        
+        return modelId;
+    }
+    
+    /**
+     * Determine model type based on filename and description
+     */
+    private String determineModelType(String filename, String description) {
+        String lowerFilename = filename.toLowerCase();
+        String lowerDesc = description != null ? description.toLowerCase() : "";
+        
+        if (lowerFilename.contains("ocr") || lowerDesc.contains("ocr") || lowerDesc.contains("text")) {
+            return "OCR";
+        } else if (lowerFilename.contains("barcode") || lowerDesc.contains("barcode") || lowerDesc.contains("qr")) {
+            return "Barcode Detection";
+        } else if (lowerFilename.contains("face") || lowerDesc.contains("face")) {
+            return "Face Recognition";
+        } else if (lowerFilename.contains("detect") || lowerDesc.contains("detect") || lowerDesc.contains("object")) {
+            return "Object Detection";
+        } else {
+            return "Custom";
+        }
     }
 }

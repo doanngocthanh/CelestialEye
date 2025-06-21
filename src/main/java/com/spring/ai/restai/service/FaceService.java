@@ -33,17 +33,22 @@ public class FaceService {
         Files.createDirectories(this.dataDirectory);
         
         System.out.println("FaceService initialized successfully");
-    }
-    
-    public FaceData registerFace(MultipartFile imageFile, String personName) throws Exception {
+    }    public FaceData registerFace(MultipartFile imageFile, String personName) throws Exception {
+        System.out.println("=== Face Registration Started ===");
+        System.out.println("Person name: " + personName);
+        System.out.println("Image file size: " + imageFile.getSize() + " bytes");
+        
         Mat image = Imgcodecs.imdecode(new MatOfByte(imageFile.getBytes()), Imgcodecs.IMREAD_COLOR);
+        System.out.println("Image loaded: " + !image.empty() + ", size: " + image.size());
+        
         MatOfRect faces = new MatOfRect();
         
         // Detect face
         faceDetector.detectMultiScale(image, faces);
+        System.out.println("Faces detected: " + faces.toArray().length);
         
         if (faces.empty()) {
-            throw new RuntimeException("No face detected in the image");
+            throw new RuntimeException("Không phát hiện được khuôn mặt trong ảnh");
         }
         
         // Get the largest face
@@ -69,22 +74,26 @@ public class FaceService {
         faceData.setBoundingBox(boundingBox);
         
         faceData.setTimestamp(System.currentTimeMillis());
-        
-        // Save face data
+          // Save face data
         saveFaceData(faceData);
         
+        System.out.println("Face registration completed successfully for: " + personName);
         return faceData;
-    }
-    
-    public FaceData authenticateFace(MultipartFile imageFile) throws Exception {
+    }    public FaceData authenticateFace(MultipartFile imageFile) throws Exception {
+        System.out.println("=== Face Authentication Started ===");
+        System.out.println("Image file size: " + imageFile.getSize() + " bytes");
+        
         Mat image = Imgcodecs.imdecode(new MatOfByte(imageFile.getBytes()), Imgcodecs.IMREAD_COLOR);
+        System.out.println("Image loaded: " + !image.empty() + ", size: " + image.size());
+        
         MatOfRect faces = new MatOfRect();
         
         // Detect face
         faceDetector.detectMultiScale(image, faces);
+        System.out.println("Faces detected: " + faces.toArray().length);
         
         if (faces.empty()) {
-            throw new RuntimeException("No face detected in the image");
+            throw new RuntimeException("Không phát hiện được khuôn mặt trong ảnh");
         }
         
         // Get the largest face
@@ -95,14 +104,13 @@ public class FaceService {
         
         // Extract face embedding
         List<Float> embedding = extractFaceEmbedding(image, largestFace);
-        
-        // Find best match
-        FaceData bestMatch = findBestMatch(embedding);
-        if (bestMatch != null) {
+          // Find best match
+        FaceData bestMatch = findBestMatch(embedding);        if (bestMatch != null) {
+            System.out.println("Face authentication successful for: " + bestMatch.getPersonName());
             return bestMatch;
         }
         
-        throw new RuntimeException("No matching face found");
+        throw new RuntimeException("Không tìm thấy khuôn mặt phù hợp trong hệ thống");
     }
       private List<Float> extractFaceEmbedding(Mat image, Rect face) {
         // Extract face region

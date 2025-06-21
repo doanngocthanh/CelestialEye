@@ -24,11 +24,11 @@
 			<artifactId>opencv</artifactId>
 			<version>4.7.0-0</version>
 		</dependency>
-				<dependency>
+		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-web</artifactId>
 		</dependency>
-				<dependency>
+		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-websocket</artifactId>
 		</dependency>
@@ -52,8 +52,9 @@
 			<groupId>net.sourceforge.tess4j</groupId>
 			<artifactId>tess4j</artifactId>
 			<version>5.8.0</version>
-		</dependency>		<!-- BoofCV for QR Code detection with compatible versions -->
-	<dependency>
+		</dependency>		<!-- BoofCV for QR Code detection with
+		compatible versions -->
+		<dependency>
 			<groupId>org.boofcv</groupId>
 			<artifactId>boofcv-feature</artifactId>
 			<version>0.41</version>
@@ -109,7 +110,7 @@
 			<artifactId>visualize</artifactId>
 			<version>0.26</version>
 		</dependency>
-		
+
 
 		<!-- ZXing for barcode processing -->
 		<dependency>
@@ -122,21 +123,21 @@
 			<artifactId>javase</artifactId>
 			<version>3.5.1</version>
 		</dependency>
-		
+
 		<!-- Apache PDFBox for PDF processing -->
 		<dependency>
 			<groupId>org.apache.pdfbox</groupId>
 			<artifactId>pdfbox</artifactId>
 			<version>2.0.29</version>
 		</dependency>
-		
+
 		<!-- ImageIO-TIFF for TIFF support -->
 		<dependency>
 			<groupId>com.twelvemonkeys.imageio</groupId>
 			<artifactId>imageio-tiff</artifactId>
 			<version>3.9.4</version>
 		</dependency>
-		
+
 		<!-- OpenCV for image preprocessing -->
 		<dependency>
 			<groupId>org.openpnp</groupId>
@@ -145,18 +146,18 @@
 		</dependency>
 
 		<!-- OpenCV for face detection -->
-        <dependency>
-            <groupId>org.openpnp</groupId>
-            <artifactId>opencv</artifactId>
-            <version>4.7.0-0</version>
-        </dependency>
-        
-        <!-- Jackson for JSON processing -->
-        <dependency>
-            <groupId>com.fasterxml.jackson.core</groupId>
-            <artifactId>jackson-databind</artifactId>
-            <version>2.15.2</version>
-        </dependency>
+		<dependency>
+			<groupId>org.openpnp</groupId>
+			<artifactId>opencv</artifactId>
+			<version>4.7.0-0</version>
+		</dependency>
+
+		<!-- Jackson for JSON processing -->
+		<dependency>
+			<groupId>com.fasterxml.jackson.core</groupId>
+			<artifactId>jackson-databind</artifactId>
+			<version>2.15.2</version>
+		</dependency>
 
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
@@ -164,14 +165,165 @@
 			<scope>test</scope>
 		</dependency>
 	</dependencies>
-
 	<build>
 		<plugins>
 			<plugin>
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>
+			</plugin>			<!-- Frontend Maven Plugin -->
+			<plugin>
+				<groupId>com.github.eirslett</groupId>
+				<artifactId>frontend-maven-plugin</artifactId>
+				<version>1.15.0</version>
+				<configuration>
+					<workingDirectory>celestial-eye-vision-kit</workingDirectory>
+					<installDirectory>target</installDirectory>
+				</configuration>
+				<executions>
+					<execution>
+						<id>install node and npm</id>
+						<phase>generate-resources</phase>
+						<goals>
+							<goal>install-node-and-npm</goal>
+						</goals>
+						<configuration>
+							<nodeVersion>v18.19.0</nodeVersion>
+							<npmVersion>10.2.3</npmVersion>
+						</configuration>
+					</execution>
+					<execution>
+						<id>npm install</id>
+						<phase>generate-resources</phase>
+						<goals>
+							<goal>npm</goal>
+						</goals>
+						<configuration>
+							<arguments>install --silent</arguments>
+						</configuration>
+					</execution>
+					<execution>
+						<id>npm run build</id>
+						<phase>generate-resources</phase>
+						<goals>
+							<goal>npm</goal>
+						</goals>
+						<configuration>
+							<arguments>run build</arguments>
+						</configuration>
+					</execution>
+				</executions>
 			</plugin>
+
+			<!-- Maven Resources Plugin to copy frontend build -->
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-resources-plugin</artifactId>
+				<version>3.3.1</version>
+				<executions>
+					<execution>
+						<id>copy-frontend-build</id>
+						<phase>process-resources</phase>
+						<goals>
+							<goal>copy-resources</goal>
+						</goals>						<configuration>
+							<outputDirectory>${basedir}/src/main/resources/static</outputDirectory>
+							<resources>
+								<resource>
+									<directory>celestial-eye-vision-kit/dist</directory>
+									<filtering>false</filtering>
+								</resource>
+							</resources>
+						</configuration>
+					</execution>
+				</executions>
+			</plugin>
+
+			<!-- Maven Clean Plugin to clean frontend build -->
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-clean-plugin</artifactId>
+				<version>3.3.2</version>				<configuration>
+					<filesets>
+						<fileset>
+							<directory>celestial-eye-vision-kit/dist</directory>
+							<includes>
+								<include>**/*</include>
+							</includes>
+							<followSymlinks>false</followSymlinks>
+						</fileset>
+						<fileset> 
+							<directory>src/main/resources/static</directory>
+							<includes>
+								<include>**/*</include>
+							</includes> 
+							<excludes>
+								<exclude>**/*.html</exclude>
+								<exclude>**/*.css</exclude>
+								<exclude>**/*.js</exclude>
+							</excludes>
+							<followSymlinks>false</followSymlinks>
+						</fileset>
+					</filesets>
+				</configuration>
+			</plugin>  
 		</plugins>
 	</build>
+
+	<profiles>
+		<!-- Profile để skip frontend build -->
+		<profile>
+			<id>skip-frontend</id>
+			<properties>
+				<skipFrontend>true</skipFrontend>
+			</properties>
+			<build>
+				<plugins>
+					<plugin>
+						<groupId>com.github.eirslett</groupId>
+						<artifactId>frontend-maven-plugin</artifactId>
+						<executions>
+							<execution>
+								<id>install node and npm</id>
+								<phase>none</phase>
+							</execution>
+							<execution>
+								<id>npm install</id>
+								<phase>none</phase>
+							</execution>
+							<execution>
+								<id>npm run build</id>
+								<phase>none</phase>
+							</execution>
+						</executions>
+					</plugin>
+				</plugins>
+			</build>
+		</profile>
+
+		<!-- Profile cho development với frontend watch mode -->
+		<profile>
+			<id>dev</id>
+			<build>
+				<plugins>
+					<plugin>
+						<groupId>com.github.eirslett</groupId>
+						<artifactId>frontend-maven-plugin</artifactId>
+						<executions>
+							<execution>
+								<id>npm run dev</id>
+								<phase>generate-resources</phase>
+								<goals>
+									<goal>npm</goal>
+								</goals>
+								<configuration>
+									<arguments>start</arguments>
+								</configuration>
+							</execution>
+						</executions>
+					</plugin>
+				</plugins>
+			</build>
+		</profile>
+	</profiles>
 
 </project>

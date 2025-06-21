@@ -7,7 +7,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -42,13 +44,45 @@ public class OcrController {
                 response.put("success", false);
                 response.put("error", "Model name is required");
                 return ResponseEntity.badRequest().body(response);
-            }
-
-            // Perform OCR detection
+            }            // Perform OCR detection
             OcrDetectionResponse result = ocrService.performOcrDetection(imageFile, modelName);
 
+            // Convert OcrResult to format expected by frontend
+            List<Map<String, Object>> formattedResults = new ArrayList<>();
+            if (result.getResults() != null) {
+                for (var ocrResult : result.getResults()) {
+                    Map<String, Object> formattedResult = new HashMap<>();
+                    formattedResult.put("text", ocrResult.getText());
+                    formattedResult.put("confidence", ocrResult.getConfidence());
+                    formattedResult.put("className", ocrResult.getClassName());
+                    formattedResult.put("classId", ocrResult.getClassId());
+                    
+                    // Format bounding box with all required fields
+                    if (ocrResult.getBoundingBox() != null) {
+                        var bbox = ocrResult.getBoundingBox();
+                        Map<String, Object> boundingBox = new HashMap<>();
+                        boundingBox.put("x1", bbox.getX1());
+                        boundingBox.put("y1", bbox.getY1());
+                        boundingBox.put("x2", bbox.getX2());
+                        boundingBox.put("y2", bbox.getY2());
+                        boundingBox.put("width", bbox.getWidth());
+                        boundingBox.put("height", bbox.getHeight());
+                        formattedResult.put("boundingBox", boundingBox);
+                    }
+                    
+                    formattedResults.add(formattedResult);
+                }
+            }
+
             response.put("success", true);
-            response.put("data", result);
+            response.put("data", Map.of(
+                    "modelName", result.getModelName(),
+                    "totalDetections", result.getTotalDetections(),
+                    "results", formattedResults,
+                    "processingTimeMs", result.getProcessingTimeMs(),
+                    "imageInfo", result.getImageInfo(),
+                    "cccdInfo", result.getCccdInfo()
+            ));
             return ResponseEntity.ok(response);
 
         } catch (IllegalArgumentException e) {
@@ -63,6 +97,70 @@ public class OcrController {
             response.put("success", false);
             response.put("error", "Internal server error: " + e.getMessage());
             return ResponseEntity.internalServerError().body(response);
+        }
+    }    /**
+     * Simple OCR text extraction endpoint
+     */    @PostMapping("/extract")
+    public ResponseEntity<Map<String, Object>> extractText(
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "modelId", required = false) String modelId) {
+        try {
+            if (file.isEmpty()) {
+                return ResponseEntity.badRequest().body(Map.of("success", false, "message", "File is required"));
+            }            // Use provided model ID or default model for simple extraction
+            String modelToUse = (modelId != null && !modelId.trim().isEmpty()) ? modelId : "DetectCCCD";
+            OcrDetectionResponse result = ocrService.performOcrDetection(file, modelToUse);
+
+            // Extract text from all OCR results
+            StringBuilder allText = new StringBuilder();
+            if (result.getResults() != null) {
+                for (var ocrResult : result.getResults()) {
+                    if (ocrResult.getText() != null && !ocrResult.getText().trim().isEmpty()) {
+                        allText.append(ocrResult.getText()).append(" ");
+                    }
+                }
+            }            // Convert OcrResult to format expected by frontend
+            List<Map<String, Object>> formattedResults = new ArrayList<>();
+            if (result.getResults() != null) {
+                for (var ocrResult : result.getResults()) {
+                    Map<String, Object> formattedResult = new HashMap<>();
+                    formattedResult.put("text", ocrResult.getText());
+                    formattedResult.put("confidence", ocrResult.getConfidence());
+                    formattedResult.put("className", ocrResult.getClassName());
+                    formattedResult.put("classId", ocrResult.getClassId());
+                    
+                    // Format bounding box with all required fields
+                    if (ocrResult.getBoundingBox() != null) {
+                        var bbox = ocrResult.getBoundingBox();
+                        Map<String, Object> boundingBox = new HashMap<>();
+                        boundingBox.put("x1", bbox.getX1());
+                        boundingBox.put("y1", bbox.getY1());
+                        boundingBox.put("x2", bbox.getX2());
+                        boundingBox.put("y2", bbox.getY2());
+                        boundingBox.put("width", bbox.getWidth());
+                        boundingBox.put("height", bbox.getHeight());
+                        formattedResult.put("boundingBox", boundingBox);
+                    }
+                    
+                    formattedResults.add(formattedResult);
+                }
+            }
+
+            return ResponseEntity.ok(Map.of(
+                    "success", true,
+                    "text", allText.toString().trim(),
+                    "totalDetections", result.getTotalDetections(),
+                    "results", formattedResults,
+                    "processingTime", result.getProcessingTimeMs(),
+                    "fileName", file.getOriginalFilename(),
+                    "cccdInfo", result.getCccdInfo()
+            ));
+
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body(Map.of(
+                    "success", false,
+                    "message", "OCR processing failed: " + e.getMessage()
+            ));
         }
     }
 }

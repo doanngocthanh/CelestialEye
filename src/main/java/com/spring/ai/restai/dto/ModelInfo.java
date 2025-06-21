@@ -6,6 +6,7 @@ import java.time.LocalDateTime;
  * DTO for model information
  */
 public class ModelInfo {
+    private String id;
     private String name;
     private String fileName;
     private String description;
@@ -13,10 +14,10 @@ public class ModelInfo {
     private long fileSize;
     private LocalDateTime uploadTime;
     private String status;
+    private String type;    public ModelInfo() {}
 
-    public ModelInfo() {}
-
-    public ModelInfo(String name, String fileName, String description, String filePath, long fileSize) {
+    public ModelInfo(String id, String name, String fileName, String description, String filePath, long fileSize, String type) {
+        this.id = id;
         this.name = name;
         this.fileName = fileName;
         this.description = description;
@@ -24,9 +25,16 @@ public class ModelInfo {
         this.fileSize = fileSize;
         this.uploadTime = LocalDateTime.now();
         this.status = "ACTIVE";
+        this.type = type;
+    }    // Getters and Setters
+    public String getId() {
+        return id;
     }
 
-    // Getters and Setters
+    public void setId(String id) {
+        this.id = id;
+    }
+
     public String getName() {
         return name;
     }
@@ -77,21 +85,27 @@ public class ModelInfo {
 
     public String getStatus() {
         return status;
-    }
-
-    public void setStatus(String status) {
+    }    public void setStatus(String status) {
         this.status = status;
     }
 
-    @Override
+    public String getType() {
+        return type;
+    }
+
+    public void setType(String type) {
+        this.type = type;
+    }    @Override
     public String toString() {
         return "ModelInfo{" +
-                "name='" + name + '\'' +
+                "id='" + id + '\'' +
+                ", name='" + name + '\'' +
                 ", fileName='" + fileName + '\'' +
                 ", description='" + description + '\'' +
                 ", fileSize=" + fileSize +
                 ", uploadTime=" + uploadTime +
                 ", status='" + status + '\'' +
+                ", type='" + type + '\'' +
                 '}';
     }
 }

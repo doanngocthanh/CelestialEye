@@ -61,6 +61,36 @@ public class DetectionController {
     }
 
     /**
+     * Simple object detection endpoint
+     */
+    @PostMapping("/detect")
+    public ResponseEntity<Map<String, Object>> detectObjects(@RequestParam("file") MultipartFile file) {
+        try {
+            if (file.isEmpty()) {
+                return ResponseEntity.badRequest().body(Map.of("success", false, "message", "File is required"));
+            }            // Use default model for detection
+            String defaultModel = "DetectCCCD"; // Use model name from registry
+            DetectionResult result = detectionService.detect(defaultModel, file, null, null);
+
+            return ResponseEntity.ok(Map.of(
+                    "success", true,
+                    "modelName", result.getModelName(),
+                    "detections", result.getDetections(),
+                    "totalDetections", result.getDetections().size(),
+                    "imageWidth", result.getImageWidth(),
+                    "imageHeight", result.getImageHeight(),
+                    "fileName", file.getOriginalFilename()
+            ));
+
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body(Map.of(
+                    "success", false,
+                    "message", "Detection failed: " + e.getMessage()
+            ));
+        }
+    }
+
+    /**
      * Get available models for detection
      */
     @GetMapping("/models")

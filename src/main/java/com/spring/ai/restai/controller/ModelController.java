@@ -15,15 +15,14 @@ import java.util.Map;
 public class ModelController {
 
     @Autowired
-    private ModelService modelService;
-
-    /**
+    private ModelService modelService;    /**
      * Upload ONNX model
      */
     @PostMapping("/upload")
     public ResponseEntity<?> uploadModel(
             @RequestParam("file") MultipartFile fileUpload,
             @RequestParam("name") String modelName,
+            @RequestParam("type") String modelType,
             @RequestParam(value = "description", required = false) String description) {
 
         try {
@@ -34,13 +33,12 @@ public class ModelController {
             if (!fileUpload.getOriginalFilename().endsWith(".onnx")) {
                 return ResponseEntity.badRequest()
                         .body(Map.of("success", false, "message", "Only ONNX files are allowed"));
-            }
-
-            ModelInfo modelInfo = modelService.uploadModel(fileUpload, modelName, description);
+            }            ModelInfo modelInfo = modelService.uploadModel(fileUpload, modelName, modelType, description);
             return ResponseEntity.ok(Map.of(
                     "success", true,
                     "message", "Model uploaded successfully",
-                    "modelName", modelName,
+                    "modelId", modelInfo.getId(),
+                    "modelName", modelInfo.getName(),
                     "model", modelInfo));
 
         } catch (Exception e) {
@@ -91,6 +89,30 @@ public class ModelController {
             boolean deleted = modelService.deleteModel(modelName);
             if (deleted) {
                 return ResponseEntity.ok(Map.of("message", "Model deleted successfully"));
+            } else {
+                return ResponseEntity.notFound().build();
+            }
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    /**
+     * Toggle model status (activate/deactivate)
+     */
+    @PutMapping("/{modelId}/status")
+    public ResponseEntity<?> toggleModelStatus(@PathVariable String modelId) {
+        try {
+            ModelInfo modelInfo = modelService.getModelInfo(modelId);
+            if (modelInfo != null) {
+                String newStatus = "ACTIVE".equals(modelInfo.getStatus()) ? "INACTIVE" : "ACTIVE";
+                modelInfo.setStatus(newStatus);
+                
+                return ResponseEntity.ok(Map.of(
+                        "success", true,
+                        "message", "Model status updated",
+                        "modelId", modelId,
+                        "status", newStatus));
             } else {
                 return ResponseEntity.notFound().build();
             }

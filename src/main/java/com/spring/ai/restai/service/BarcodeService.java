@@ -7,16 +7,19 @@ import com.spring.ai.plugins.YOLOv8Detector;
 import com.spring.ai.restai.detector.GenericYOLODetector;
 import com.spring.ai.restai.dto.DetailedBarcodeResult;
 import com.spring.ai.restai.dto.DetailedBarcodeResult.BoundingBox;
+import com.spring.ai.restai.dto.ModelInfo;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.rendering.PDFRenderer;
 import org.opencv.core.CvType;
 import org.opencv.core.Mat;
 import org.opencv.imgproc.Imgproc;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.multipart.MultipartFile;
 import org.opencv.core.Core;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 import javax.imageio.ImageIO;
 import javax.imageio.ImageReader;
@@ -29,27 +32,68 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.*;
 
-
 @Service
 public class BarcodeService {
-    private final YOLOv8Detector barcodeDetector;
-    private static final float CONFIDENCE_THRESHOLD = 0.25f; // Lowered from 0.35f to detect more potential barcodes
-    private static final float NMS_THRESHOLD = 0.6f; // Increased from 0.45f to keep more overlapping detections
-    private static final int PADDING = 15; // Increased padding
-    private static final float OVERLAP_RATIO = 0.2f; // 20% overlap between regions
+    private final Map<String, YOLOv8Detector> detectorCache = new ConcurrentHashMap<>();
+    private static final float CONFIDENCE_THRESHOLD = 0.25f;
+    private static final float NMS_THRESHOLD = 0.6f;
+    private static final int PADDING = 15;
+    private static final float OVERLAP_RATIO = 0.2f;
 
-    public BarcodeService() throws Exception {
-        System.out.println("Initializing BarcodeService...");
-        // Create detector using the 4-parameter constructor
-        this.barcodeDetector = new GenericYOLODetector(
-            "models/DetectBarCode_1750436985515.onnx", // Model path 
-            640, 640, // Target dimensions
-            CONFIDENCE_THRESHOLD // Confidence threshold
-        );
-        // Set NMS threshold separately
-        this.barcodeDetector.setNmsThreshold(NMS_THRESHOLD);
-        System.out.println("BarcodeService initialized with confidence threshold: " + CONFIDENCE_THRESHOLD +
-                         ", NMS threshold: " + NMS_THRESHOLD);
+    @Autowired
+    private ModelService modelService;
+
+    public BarcodeService() {
+        System.out.println("BarcodeService initialized (detectors will be loaded on demand)");
+    }    /**
+     * Get or initialize detector for specific model
+     */
+    private YOLOv8Detector getDetector(String modelId) throws Exception {
+        // Check cache first
+        if (detectorCache.containsKey(modelId)) {
+            return detectorCache.get(modelId);
+        }
+        
+        // Get model path from ModelService
+        String modelPath = modelService.getModelPath(modelId);
+        if (modelPath == null) {
+            throw new Exception("Model not found: " + modelId);
+        }
+        
+        try {
+            YOLOv8Detector detector = new GenericYOLODetector(
+                    modelPath,
+                    640, 640,
+                    CONFIDENCE_THRESHOLD
+            );
+            detector.setNmsThreshold(NMS_THRESHOLD);
+            
+            // Cache the detector
+            detectorCache.put(modelId, detector);
+            System.out.println("Loaded and cached detector for model: " + modelId + " (path: " + modelPath + ")");
+            return detector;
+            
+        } catch (Exception e) {
+            System.err.println("Failed to load model: " + modelPath + " - " + e.getMessage());
+            throw new Exception("Model not found or invalid: " + modelId, e);
+        }
+    }
+      /**
+     * Check if model is available
+     */
+    public boolean isModelAvailable(String modelId) {
+        // First check if model exists in ModelService
+        if (!modelService.modelExists(modelId)) {
+            return false;
+        }
+        
+        // Then try to load detector
+        try {
+            getDetector(modelId);
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     static {
@@ -66,34 +110,43 @@ public class BarcodeService {
 
     /**
      * Process document and detect barcodes from all pages
+     */    public List<DetailedBarcodeResult> processDocument(MultipartFile file) throws IOException {
+        return processDocument(file, null);
+    }
+
+    /**
+     * Process document with specific model
      */
-    public List<DetailedBarcodeResult> processDocument(MultipartFile file) throws IOException {
+    public List<DetailedBarcodeResult> processDocument(MultipartFile file, String modelId) throws IOException {
         String fileName = file.getOriginalFilename().toLowerCase();
         System.out.println("Processing document: " + fileName + ", size: " + file.getSize() + " bytes");
+        if (modelId != null) {
+            System.out.println("Using model: " + modelId);
+        } else {
+            System.out.println("Using ZXing only (no YOLO model)");
+        }
 
         List<DetailedBarcodeResult> results = new ArrayList<>();
 
         if (fileName.endsWith(".pdf")) {
             System.out.println("Processing as PDF document");
-            results.addAll(processPdf(file));
+            results.addAll(processPdf(file, modelId));
         } else if (fileName.endsWith(".tiff") || fileName.endsWith(".tif")) {
             System.out.println("Processing as TIFF document");
-            results.addAll(processTiff(file));
+            results.addAll(processTiff(file, modelId));
         } else {
             System.out.println("Processing as single image");
             BufferedImage image = ImageIO.read(new ByteArrayInputStream(file.getBytes()));
             System.out.println("Image dimensions: " + image.getWidth() + "x" + image.getHeight());
-            results.add(processPage(image, 1));
+            results.add(processPage(image, 1, modelId));
         }
 
         System.out.println("Document processing completed. Total results: " + results.size());
         return results;
-    }
-
-    /**
+    }    /**
      * Process PDF document
      */
-    private List<DetailedBarcodeResult> processPdf(MultipartFile file) throws IOException {
+    private List<DetailedBarcodeResult> processPdf(MultipartFile file, String modelId) throws IOException {
         List<DetailedBarcodeResult> results = new ArrayList<>();
         try (PDDocument document = PDDocument.load(new ByteArrayInputStream(file.getBytes()))) {
             int totalPages = document.getNumberOfPages();
@@ -105,16 +158,14 @@ public class BarcodeService {
                 BufferedImage image = pdfRenderer.renderImageWithDPI(page, 300);
                 System.out.println(
                         "Page " + (page + 1) + " rendered. Dimensions: " + image.getWidth() + "x" + image.getHeight());
-                results.add(processPage(image, page + 1));
+                results.add(processPage(image, page + 1, modelId));
             }
         }
         return results;
-    }
-
-    /**
+    }    /**
      * Process TIFF document
      */
-    private List<DetailedBarcodeResult> processTiff(MultipartFile file) throws IOException {
+    private List<DetailedBarcodeResult> processTiff(MultipartFile file, String modelId) throws IOException {
         List<DetailedBarcodeResult> results = new ArrayList<>();
 
         // Use ImageIO to get image reader for TIFF format
@@ -140,7 +191,7 @@ public class BarcodeService {
                 System.out.println("Processing TIFF page " + (page + 1) + "/" + numPages);
                 BufferedImage image = reader.read(page);
                 System.out.println("Page " + (page + 1) + " dimensions: " + image.getWidth() + "x" + image.getHeight());
-                results.add(processPage(image, page + 1));
+                results.add(processPage(image, page + 1, modelId));
             }
 
             iis.close();
@@ -149,12 +200,10 @@ public class BarcodeService {
         }
 
         return results;
-    }
-
-    /**
+    }    /**
      * Process a single page/image for barcode detection
      */
-    private DetailedBarcodeResult processPage(BufferedImage image, int pageNumber) {
+    private DetailedBarcodeResult processPage(BufferedImage image, int pageNumber, String modelId) {
         System.out.println("Processing page " + pageNumber);
         System.out.println("Original image dimensions: " + image.getWidth() + "x" + image.getHeight());
 
@@ -167,77 +216,52 @@ public class BarcodeService {
 
         // Keep track of detected barcodes to avoid duplicates
         Set<String> processedBarcodes = new HashSet<>();
+        
+        // Try to get detector if model ID is provided
+        YOLOv8Detector detector = null;
+        if (modelId != null && !modelId.trim().isEmpty()) {
+            try {
+                detector = getDetector(modelId);
+                System.out.println("Using YOLO detector with model: " + modelId);
+            } catch (Exception e) {
+                System.err.println("Failed to load detector for model " + modelId + ": " + e.getMessage());
+                System.out.println("Falling back to ZXing only");
+            }
+        }
 
         for (ImageRegion region : regions) {
             System.out.println("Processing region " + region.regionNumber);
             System.out.println("Region dimensions: " + region.width + "x" + region.height + " at position (" + region.x
                     + "," + region.y + ")");
 
-            // Run YOLOv8 detection on each region
-            YOLOv8Detector.Detection[] detections = barcodeDetector.detect(region.image);
-            System.out.println("Found " + detections.length + " potential barcodes in region " + region.regionNumber);
+            // Run YOLOv8 detection on each region if detector is available
+            if (detector != null) {
+                YOLOv8Detector.Detection[] detections = detector.detect(region.image);
+                System.out.println("Found " + detections.length + " potential barcodes in region " + region.regionNumber);
 
-            for (YOLOv8Detector.Detection detection : detections) {
-                System.out.println("Processing detection with confidence: " + detection.confidence);
-                System.out.println("Detection bbox: [" + detection.x1 + "," + detection.y1 + "," + detection.x2 + ", "
-                        + detection.y2 + "]");
+                for (YOLOv8Detector.Detection detection : detections) {
+                    System.out.println("Processing detection with confidence: " + detection.confidence);
+                    System.out.println("Detection bbox: [" + detection.x1 + "," + detection.y1 + "," + detection.x2 + ", "
+                            + detection.y2 + "]");
 
-                if (detection.confidence >= CONFIDENCE_THRESHOLD) {
-                    System.out.println("Detection passed confidence threshold");
+                    if (detection.confidence >= CONFIDENCE_THRESHOLD) {
+                        System.out.println("Detection passed confidence threshold");
 
-                    // Crop and process detected barcode area
-                    BufferedImage barcodeArea = cropDetectedRegion(region.image, detection);
-                    System.out.println("Cropped barcode area: " + barcodeArea.getWidth() + "x" + barcodeArea.getHeight());
-
-                    // Enhance barcode image
-                    BufferedImage enhancedBarcode = enhanceBarcodeImage(barcodeArea);
-                    System.out.println("Barcode image enhanced");
-
-                    // Decode barcode using ZXing
-                    Result decodedResult = decodeBarcode(enhancedBarcode);
-
-                    if (decodedResult != null && !processedBarcodes.contains(decodedResult.getText())) {
-                        System.out.println("Barcode decoded successfully: " + decodedResult.getText());
-                        System.out.println("Barcode format: " + decodedResult.getBarcodeFormat());
-
-                        result.setRegionNumber(region.regionNumber);
-
-                        DetailedBarcodeResult.BarcodeInfo barcodeInfo = new DetailedBarcodeResult.BarcodeInfo();
-                        barcodeInfo.setContent(decodedResult.getText());
-                        barcodeInfo.setFormat(decodedResult.getBarcodeFormat().toString());
-                        barcodeInfo.setConfidence(detection.confidence);
-
-                        // Set original location (in full image coordinates)
-                        DetailedBarcodeResult.BoundingBox originalLocation = new DetailedBarcodeResult.BoundingBox();
-                        originalLocation.setX(region.x + detection.x1);
-                        originalLocation.setY(region.y + detection.y1);
-                        originalLocation.setWidth(detection.getWidth() * region.width);
-                        originalLocation.setHeight(detection.getHeight() * region.height);
-                        barcodeInfo.setOriginalLocation(originalLocation);
-                        System.out.println(
-                                "Original location: " + originalLocation.getX() + "," + originalLocation.getY() +
-                                        " (" + originalLocation.getWidth() + "x" + originalLocation.getHeight() + ")");
-
-                        // Set region location (relative to region)
-                        DetailedBarcodeResult.BoundingBox regionLocation = new DetailedBarcodeResult.BoundingBox();
-                        regionLocation.setX(detection.x1);
-                        regionLocation.setY(detection.y1);
-                        regionLocation.setWidth(detection.getWidth() * region.width);
-                        regionLocation.setHeight(detection.getHeight() * region.height);
-                        barcodeInfo.setRegionLocation(regionLocation);
-                        System.out.println("Region location: " + regionLocation.getX() + "," + regionLocation.getY() +
-                                " (" + regionLocation.getWidth() + "x" + regionLocation.getHeight() + ")");
-
-                        result.addBarcode(barcodeInfo);
-                        processedBarcodes.add(decodedResult.getText());
-                    } else if (decodedResult != null) {
-                        System.out.println("Duplicate barcode detected, skipping: " + decodedResult.getText());
+                        // Crop and process detected barcode area
+                        BufferedImage barcodeArea = cropDetectedRegion(region.image, detection);
+                        System.out
+                                .println("Cropped barcode area: " + barcodeArea.getWidth() + "x" + barcodeArea.getHeight());
+                        
+                        // Process detected barcode area with ZXing
+                        processDetectedBarcodeArea(barcodeArea, region, detection, result, processedBarcodes);
                     } else {
-                        System.out.println("Failed to decode barcode from detected region");
+                        System.out.println("Detection rejected due to low confidence: " + detection.confidence);
                     }
-                } else {
-                    System.out.println("Detection rejected due to low confidence: " + detection.confidence);
                 }
+            } else {
+                System.out.println("YOLO detector not available, using ZXing scan on entire region");
+                // Fallback to ZXing scanning of entire region
+                processEntireRegionWithZXing(region.image, region, result, processedBarcodes);
             }
         }
 
@@ -246,8 +270,7 @@ public class BarcodeService {
             System.out.println("Found " + result.getBarcodes().size() + " unique barcodes on page " + pageNumber);
             for (DetailedBarcodeResult.BarcodeInfo barcode : result.getBarcodes()) {
                 System.out.println(" - " + barcode.getContent() + " (" + barcode.getFormat() + ")");
-            }
-        } else {
+            }        } else {
             System.out.println("No valid barcodes found on page " + pageNumber);
         }
 
@@ -262,15 +285,15 @@ public class BarcodeService {
         List<ImageRegion> regions = new ArrayList<>();
         int width = image.getWidth();
         int height = image.getHeight();
-        
+
         // Calculate base region sizes
         int baseRegionWidth = width / 2;
         int baseRegionHeight = height / 2;
-        
+
         // Calculate overlap amounts
-        int overlapX = (int)(baseRegionWidth * OVERLAP_RATIO);
-        int overlapY = (int)(baseRegionHeight * OVERLAP_RATIO);
-        
+        int overlapX = (int) (baseRegionWidth * OVERLAP_RATIO);
+        int overlapY = (int) (baseRegionHeight * OVERLAP_RATIO);
+
         // Add regular regions with overlap
         int regionNumber = 1;
         for (int y = 0; y < 2; y++) {
@@ -279,29 +302,29 @@ public class BarcodeService {
                 int startY = y * baseRegionHeight - (y > 0 ? overlapY : 0);
                 int regionWidth = baseRegionWidth + (x > 0 ? overlapX : 0) + (x < 1 ? overlapX : 0);
                 int regionHeight = baseRegionHeight + (y > 0 ? overlapY : 0) + (y < 1 ? overlapY : 0);
-                
+
                 // Ensure we don't exceed image bounds
                 startX = Math.max(0, startX);
                 startY = Math.max(0, startY);
                 regionWidth = Math.min(width - startX, regionWidth);
                 regionHeight = Math.min(height - startY, regionHeight);
-                
+
                 BufferedImage regionImage = image.getSubimage(startX, startY, regionWidth, regionHeight);
                 regions.add(new ImageRegion(regionImage, regionNumber++, startX, startY, regionWidth, regionHeight));
             }
         }
-        
+
         // Add full image as an additional region
         regions.add(new ImageRegion(image, regionNumber++, 0, 0, width, height));
-        
+
         // Add half-resolution version of full image for small barcodes
-        BufferedImage halfRes = new BufferedImage(width/2, height/2, BufferedImage.TYPE_INT_RGB);
+        BufferedImage halfRes = new BufferedImage(width / 2, height / 2, BufferedImage.TYPE_INT_RGB);
         Graphics2D g2d = halfRes.createGraphics();
         g2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-        g2d.drawImage(image, 0, 0, width/2, height/2, null);
+        g2d.drawImage(image, 0, 0, width / 2, height / 2, null);
         g2d.dispose();
         regions.add(new ImageRegion(halfRes, regionNumber, 0, 0, width, height));
-        
+
         return regions;
     }
 
@@ -548,6 +571,102 @@ public class BarcodeService {
             this.y = y;
             this.width = width;
             this.height = height;
+        }
+    }
+
+    /**
+     * Process detected barcode area with ZXing
+     */
+    private void processDetectedBarcodeArea(BufferedImage barcodeArea, ImageRegion region, 
+                                          YOLOv8Detector.Detection detection, DetailedBarcodeResult result, 
+                                          Set<String> processedBarcodes) {
+        // Enhance barcode image
+        BufferedImage enhancedBarcode = enhanceBarcodeImage(barcodeArea);
+        System.out.println("Barcode image enhanced");
+
+        // Decode barcode using ZXing
+        Result decodedResult = decodeBarcode(enhancedBarcode);
+
+        if (decodedResult != null && !processedBarcodes.contains(decodedResult.getText())) {
+            System.out.println("Barcode decoded successfully: " + decodedResult.getText());
+            System.out.println("Barcode format: " + decodedResult.getBarcodeFormat());
+
+            result.setRegionNumber(region.regionNumber);
+
+            DetailedBarcodeResult.BarcodeInfo barcodeInfo = new DetailedBarcodeResult.BarcodeInfo();
+            barcodeInfo.setContent(decodedResult.getText());
+            barcodeInfo.setFormat(decodedResult.getBarcodeFormat().toString());
+            barcodeInfo.setConfidence(detection.confidence);
+
+            // Set original location (in full image coordinates)
+            DetailedBarcodeResult.BoundingBox originalLocation = new DetailedBarcodeResult.BoundingBox();
+            originalLocation.setX(region.x + detection.x1);
+            originalLocation.setY(region.y + detection.y1);
+            originalLocation.setWidth(detection.getWidth() * region.width);
+            originalLocation.setHeight(detection.getHeight() * region.height);
+            barcodeInfo.setOriginalLocation(originalLocation);
+            System.out.println(
+                    "Original location: " + originalLocation.getX() + "," + originalLocation.getY() +
+                            " (" + originalLocation.getWidth() + "x" + originalLocation.getHeight() + ")");
+
+            // Set region location (relative to region)
+            DetailedBarcodeResult.BoundingBox regionLocation = new DetailedBarcodeResult.BoundingBox();
+            regionLocation.setX(detection.x1);
+            regionLocation.setY(detection.y1);
+            regionLocation.setWidth(detection.getWidth() * region.width);
+            regionLocation.setHeight(detection.getHeight() * region.height);
+            barcodeInfo.setRegionLocation(regionLocation);
+            System.out.println("Region location: " + regionLocation.getX() + "," + regionLocation.getY() +
+                    " (" + regionLocation.getWidth() + "x" + regionLocation.getHeight() + ")");
+
+            result.addBarcode(barcodeInfo);
+            processedBarcodes.add(decodedResult.getText());
+        } else if (decodedResult != null) {
+            System.out.println("Duplicate barcode detected, skipping: " + decodedResult.getText());
+        } else {
+            System.out.println("Failed to decode barcode from detected region");
+        }
+    }
+
+    /**
+     * Process entire region with ZXing when YOLO detector is not available
+     */
+    private void processEntireRegionWithZXing(BufferedImage regionImage, ImageRegion region, 
+                                            DetailedBarcodeResult result, Set<String> processedBarcodes) {
+        // Enhance the entire region image
+        BufferedImage enhanced = enhanceBarcodeImage(regionImage);
+        
+        // Try to decode barcode from the enhanced region
+        Result decodedResult = decodeBarcode(enhanced);
+        
+        if (decodedResult != null && !processedBarcodes.contains(decodedResult.getText())) {
+            System.out.println("Barcode decoded from region " + region.regionNumber + ": " + decodedResult.getText());
+            
+            result.setRegionNumber(region.regionNumber);
+            
+            DetailedBarcodeResult.BarcodeInfo barcodeInfo = new DetailedBarcodeResult.BarcodeInfo();
+            barcodeInfo.setContent(decodedResult.getText());
+            barcodeInfo.setFormat(decodedResult.getBarcodeFormat().toString());
+            barcodeInfo.setConfidence(1.0f); // Set default confidence for ZXing-only detection
+            
+            // Set original location (approximate - entire region)
+            DetailedBarcodeResult.BoundingBox originalLocation = new DetailedBarcodeResult.BoundingBox();
+            originalLocation.setX(region.x);
+            originalLocation.setY(region.y);
+            originalLocation.setWidth(region.width);
+            originalLocation.setHeight(region.height);
+            barcodeInfo.setOriginalLocation(originalLocation);
+            
+            // Set region location (entire region)
+            DetailedBarcodeResult.BoundingBox regionLocation = new DetailedBarcodeResult.BoundingBox();
+            regionLocation.setX(0);
+            regionLocation.setY(0);
+            regionLocation.setWidth(region.width);
+            regionLocation.setHeight(region.height);
+            barcodeInfo.setRegionLocation(regionLocation);
+            
+            result.addBarcode(barcodeInfo);
+            processedBarcodes.add(decodedResult.getText());
         }
     }
 }
