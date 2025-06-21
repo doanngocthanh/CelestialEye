@@ -15,12 +15,25 @@ export default defineConfig(({ mode }: { mode: string }) => ({
         secure: false,
       }
     }
+  },  build: {
+    outDir: 'dist',
+    assetsDir: 'assets',
+    sourcemap: false,
+    minify: 'terser' as const,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ['react', 'react-dom'],
+          ui: ['lucide-react', '@radix-ui/react-dialog']
+        }
+      }
+    }
   },
   plugins: [
     react(),
     mode === 'development' &&
     componentTagger(),
-  ].filter(Boolean),  resolve: {
+  ].filter(Boolean),resolve: {
     alias: {
       "@": path.resolve(".", "src"),
     },

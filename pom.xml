@@ -185,20 +185,27 @@
 						<phase>generate-resources</phase>
 						<goals>
 							<goal>install-node-and-npm</goal>
-						</goals>
-						<configuration>
-							<nodeVersion>v18.19.0</nodeVersion>
-							<npmVersion>10.2.3</npmVersion>
+						</goals>						<configuration>
+							<nodeVersion>v20.11.0</nodeVersion>
+							<npmVersion>10.2.4</npmVersion>
+						</configuration>
+					</execution>					<execution>
+						<id>npm install</id>
+						<phase>generate-resources</phase>
+						<goals>
+							<goal>npm</goal>
+						</goals>						<configuration>
+							<arguments>install --silent</arguments>
 						</configuration>
 					</execution>
 					<execution>
-						<id>npm install</id>
+						<id>npm install terser</id>
 						<phase>generate-resources</phase>
 						<goals>
 							<goal>npm</goal>
 						</goals>
 						<configuration>
-							<arguments>install --silent</arguments>
+							<arguments>install terser --save-dev --silent</arguments>
 						</configuration>
 					</execution>
 					<execution>
@@ -209,6 +216,9 @@
 						</goals>
 						<configuration>
 							<arguments>run build</arguments>
+							<environmentVariables>
+								<NODE_ENV>production</NODE_ENV>
+							</environmentVariables>
 						</configuration>
 					</execution>
 				</executions>
